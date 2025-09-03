@@ -14,8 +14,7 @@ git log -G "search term"
 ## Fix casing issues after renaming a file
 
 ```bash
-qq
-t mv --force --cached path/to/file path/to/File
+git mv --force --cached path/to/file path/to/File
 git commit -m "Fix casing issues"
 ```
 

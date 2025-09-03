@@ -239,6 +239,54 @@ Consume like
                      (DateTimeFormatter/ofPattern "MMM dd yyyy HH"))
 ```
 
+For documentation of java classes and methods we can utilize
+
+```clojure
+(javadoc/javadoc java.sql.Connection)
+```
+
+Then just eval and a browser will open with the documentation.
+
+### Calling own classes
+
+1. Create a java class anywhere in the project and call it like `Example.java`
+   - class should have a package on top like `package com.example2;`
+   - class should be public
+   - methods which are to be called should be public
+     Example:
+
+```java
+package com.example2;
+
+public class Example {
+  public static int add(int a, int b) {
+    return a + b;
+  }
+}
+```
+
+2. Add a directory to classpath (:paths in deps.edn) like
+
+```clojure
+{:paths ["src" "resources" "target/classes"]
+...
+```
+
+3. Compile the java file to this directory like
+
+```bash
+javac -d target/classes Example.java
+```
+
+4. Consume like
+
+```clojure
+(ns my-clojure-project.protobuf
+  (:import [com.example2 Example]))
+
+(Example/add 1 2)
+```
+
 ## Making http requests
 
 Add `clj-http/clj-http {:mvn/version "3.12.3"}` to `deps.edn`
@@ -280,7 +328,9 @@ Clojure 1.12 is required
 Import tools like `[clojure.repl.deps :refer :all] `
 Use and eval like `(clojure.repl.deps/sync-deps)`
 
-## Sql queries
+## Sql
+
+### Queries
 
 Add deps to `deps.edn`
 
@@ -322,6 +372,21 @@ Query like
                    :from :User :where [:= :id "6607dc80-6b0a-4be5-8dad-1715e60a7f0f"]},
                   {:quoted true})))
 ```
+
+### Parsing of array values
+
+By default jdbc returns unparsed pg.arrays. A solution to this may be to extend
+the ReadableColumn protocol like this:
+
+```clojure
+(extend-protocol rs/ReadableColumn
+  java.sql.Array
+    (read-column-by-label [^java.sql.Array v _] (vec (.getArray v)))
+    (read-column-by-index [^java.sql.Array v _ _] (vec (.getArray v))))
+```
+
+and to call it in some place (for example at app start). This casts all pg.arrays
+to clojure vectors
 
 ## Atoms
 
@@ -498,6 +563,7 @@ For lsp to consume docs and provide autocomplete for java static classes refer t
 [Lsp docs](https://clojure-lsp.io/settings/#java-support)
 
 Important part is documented here
+
 ```
 Most JRE installations contains the java source code in a src.zip, clojure-lsp
 tries to find it via :java :home-path setting if provided, JAVA_HOME env var or
@@ -516,9 +582,10 @@ Then in `clojure-project-root/.lsp/config.edn` add
         :download-jdk-source? true}}
 ```
 
-And since the src.zip is located in 
+And since the src.zip is located in
 `/opt/homebrew/Cellar/openjdk@17/17.0.14/libexec/openjdk.jdk/Contents/Home/lib/src.zip`
 I added a symlink to it one level up like
+
 ```bash
 cd /opt/homebrew/Cellar/openjdk@17/17.0.14/libexec/openjdk.jdk/Contents/Home/
 ln -s lib/src.zip src.zip
@@ -526,3 +593,212 @@ ln -s lib/src.zip src.zip
 
 Also I reinstalled clojure lsp with mason and made sure that a `db.transit.json`
 file appeared in `~/.cache/clojure-lsp/`
+
+## Validation
+
+There is basically clojure.spec and malli. Spec is build in but a bit verbose.
+So for now I'll use malli.
+`metosin/malli {:mvn/version "0.17.0"}`
+
+Refer to [Malli](/malli.md)
+
+## Special symbols
+
+### ~ (Tilde) — Unquote
+
+In Clojure, ~ is used inside a syntax-quoted form ` to unquote an expression,
+meaning it evaluates that expression and inserts the result.
+
+Example:
+
+```clojure
+(def my-items '(2 3))
+`(1 ~my-items 4)
+;; => (1 (2 3) 4)
+
+;; another exapmle
+`(list 1 2 ~(+ 1 2)) ;; => (list 1 2 3)
+```
+
+### ~ (Tilde) — Unquote
+
+In Clojure, ~ is used inside a syntax-quoted form ` to unquote an expression,
+meaning it evaluates that expression and inserts the result.
+
+Example:
+
+```clojure
+(def my-items '(2 3))
+`(1 ~my-items 4)
+;; => (1 (2 3) 4)
+
+;; another exapmle
+`(list 1 2 ~(+ 1 2)) ;; => (list 1 2 3)
+```
+
+### ~@ - "unquote splicing"
+
+While ~ (unquote) evaluates an expression and inserts its result as a single
+item, ~@ (unquote-splicing) evaluates an expression and inserts the items of
+the resulting sequence directly into the surrounding list.
+
+Example:
+
+```clojure
+(def my-items '(2 3))
+
+`(1 ~@my-items 4)
+;; => (1 2 3 4)
+
+`(1 ~my-items 4)
+;; => (1 (2 3) 4)  ; nested list!
+```
+
+## Base64
+
+```clojure
+(:import java.util.Base64)
+```
+
+Encode:
+
+```clojure
+(.encodeToString (Base64/getEncoder) bytes)
+```
+
+Decode:
+
+```clojure
+(String. (.decode (Base64/getDecoder) encoded))
+```
+
+## Protobuf
+
+Evantually need to install the compiler 
+```bash 
+apt install -y protobuf-compiler
+```
+
+Include in .proto files
+
+```proto
+syntax = "proto3";
+
+package my_clojure_project.protobuf;
+
+option java_package = "my_clojure_project.protobuf";
+option java_outer_classname = "Auth";
+option java_multiple_files = true;
+```
+
+1. `protoc --java_out=src src/my_clojure_project/protobuf/auth.proto`
+2. Download protobuf-java-4.31.1.jar from maven repository
+3. `javac -cp protobuf-java-4.31.1.jar:. src/my_clojure_project/protobuf/Auth.java`
+4. Restart repl or otherwise strange errors arrive
+5. Import like
+
+```clojure
+(:import java.util.Base64
+           [my_clojure_project.protobuf
+            Auth$CAuthentication_GetPasswordRSAPublicKey_Request
+            Auth$CAuthentication_GetPasswordRSAPublicKey_Response
+            Auth$CAuthentication_BeginAuthSessionViaCredentials_Request
+            Auth$CAuthentication_BeginAuthSessionViaCredentials_Response])
+```
+
+6. Encode request like
+
+```clojure
+(defn encode-protobuf-request
+  [account-name]
+  (encode-base64
+    (-> (Auth$CAuthentication_GetPasswordRSAPublicKey_Request/newBuilder)
+        (.setAccountName account-name)
+        (.build)
+        (.toByteArray))))
+```
+
+7. Send request with `:as :byte-array` option
+8. Extract values with methods
+
+```clojure
+(comment
+(def resp
+    (Auth$CAuthentication_GetPasswordRSAPublicKey_Response/parseFrom bytes-resp))
+  (.getPublickeyMod resp)
+  (.getPublickeyExp resp)
+  (.getPublickeyExp resp)
+```
+
+## Working with dates
+
+Create date from timestamp:
+`(java.util.Date. 1771153953000)`
+
+Create from string
+
+```clojure
+(:import [java.time Instant])
+
+(Instant/parse "2025-07-15T12:02:43.000Z")
+```
+
+Parse date of a specific format:
+
+```clojure
+(defn parse-date
+  [s]
+  (let [cleaned   (clojure.string/replace s #"01: \+0" "01:00 +0000")
+        formatter (DateTimeFormatter/ofPattern "MMM dd yyyy HH:mm Z")]
+    (Instant/parse cleaned formatter)))
+```
+
+### Java.time examples
+
+```clojure
+(defn within-past-year?
+  [dt]
+  (let [now (ZonedDateTime/now ZoneOffset/UTC)
+        one-year-ago (.minusYears now 1)]
+    (and (.isAfter dt one-year-ago) (.isBefore dt now))))
+```
+
+## URL decode/encode
+
+```clojure
+(:import
+    [java.net URLDecoder]
+    [java.net URLEncoder])
+(URLEncoder/encode (URLDecoder/decode "val%20" "UTF-8") "UTF-8")
+```
+
+## Repl tools
+
+For when getting `Alias h already exists in namespace...`
+This might help:
+`clojure.tools.namespace.repl/refresh`
+
+## VPS setup
+Install jdk
+
+```bash
+sudo apt install openjdk-21-jdk
+```
+check java version with `java --version`
+switch java version with
+```bash
+sudo update-alternatives --config java
+```
+
+Install clojure
+```bash
+  curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
+  chmod +x linux-install.sh
+  sudo ./linux-install.sh
+```
+
+Also install rlwrap
+```bash
+sudo apt install rlwrap
+```
+

@@ -12,6 +12,18 @@ Is installed with docker
 docker run -d -p 8888:8888 -p 8500:8500 spectolabs/hoverfly:latest -webserver
 ```
 
+Or add to `docker-compose.yml`
+
+```yaml
+  hoverfly:
+    image: spectolabs/hoverfly:latest
+    command: -webserver
+    ports:
+      - "8888:8888"
+      - "8500:8500"
+    restart: always
+```
+
 ## Main commands
 
 In test utils directory create a hoverfly directory with contents like.

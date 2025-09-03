@@ -35,3 +35,12 @@ SELECT
 FROM
   pg_stat_activity
 ```
+
+## Copy to csv table
+Sometimes it is helpful to seed local data with csv files for testing
+Here is how you can copy data from a csv file to a table
+
+```sql
+\copy (SELECT * FROM Listings) TO '/tmp/export.csv' WITH CSV DELIMITER ';' HEADER
+```
+

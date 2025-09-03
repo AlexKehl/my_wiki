@@ -52,3 +52,8 @@ Also one can remove the build cache, which can take up a lot of space, with
 ```bash
 docker builder prune
 ```
+
+- Remove all dangling stuff
+```bash
+docker system prune -a
+```
